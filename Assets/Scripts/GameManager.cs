@@ -15,11 +15,26 @@ public class GameManager : MonoBehaviour
     [SerializeField] private CubeRotator cubeRotator;
     [SerializeField] private CubeStateManager cubeStateManager;
 
+    [Header("Игровые режимы")]
+    [SerializeField] private GameOfLifeController gameOfLifeController;
+
     public CubeSelector CubeSelector => cubeSelector;
     public CubeRotator CubeRotator => cubeRotator;
 
     private List<CubeController> _allCubes = new List<CubeController>();
 
+/// <summary>
+/// Запускает симуляцию игры "Жизнь", перед этим сбрасывая выделение кубов.
+/// </summary>
+    public void ToggleGameOfLife()
+    {
+        if (gameOfLifeController != null)
+        {
+
+            CubeSelector.DeselectAll();
+            gameOfLifeController.ToggleSimulation();
+        }
+    }
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -33,6 +48,11 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         InitializeGame();
+        if (gameOfLifeController != null)
+        {
+            // Передаем список кубов, ротатор и расстояние между ними
+            gameOfLifeController.Initialize(_allCubes, cubeRotator, cubeSpawner.CubeSpacing);
+        }
     }
 
     private void Update()

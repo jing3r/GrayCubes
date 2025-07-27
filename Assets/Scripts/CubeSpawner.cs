@@ -12,6 +12,7 @@ public class CubeSpawner : MonoBehaviour
     [SerializeField] private int gridSize = 32;
     [Tooltip("Расстояние между центрами кубов.")]
     [SerializeField] private float cubeSpacing = 1.1f;
+    public float CubeSpacing => cubeSpacing;
     [Tooltip("Якорная точка для начала построения сетки.")]
     [SerializeField] private Vector3 anchorPosition;
 
