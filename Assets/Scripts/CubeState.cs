@@ -1,8 +1,13 @@
 using UnityEngine;
 
+/// <summary>
+/// Хранит сериализуемое состояние одного куба для сохранения и загрузки.
+/// </summary>
 [System.Serializable]
 public class CubeState
 {
-    public Vector3 Position;
+    /// <summary>
+    /// Сохраненное вращение куба.
+    /// </summary>
     public Quaternion Rotation;
 }

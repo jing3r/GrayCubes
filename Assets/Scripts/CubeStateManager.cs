@@ -1,50 +1,57 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
+/// <summary>
+/// Управляет сохранением и загрузкой состояния всех кубов.
+/// </summary>
 public class CubeStateManager : MonoBehaviour
 {
-    private List<CubeState> savedCubeStates;
+    private List<CubeController> allCubes;
+    private Dictionary<Vector3, CubeState> savedState;
 
-    public void SaveCubeState()
+    /// <summary>
+    /// Инициализирует менеджер состояния.
+    /// </summary>
+    public void Initialize(List<CubeController> cubes)
     {
-        savedCubeStates = new List<CubeState>();
-        GameObject[] allCubes = GameObject.FindGameObjectsWithTag("Cube");
+        allCubes = cubes;
+    }
+
+    /// <summary>
+    /// Сохраняет текущее вращение всех кубов.
+    /// </summary>
+    public void SaveState()
+    {
+        savedState = new Dictionary<Vector3, CubeState>();
+        foreach (var cube in allCubes)
+        {
+            var state = new CubeState { Rotation = cube.transform.rotation };
+            // Используем позицию как уникальный идентификатор
+            savedState[cube.transform.position] = state;
+        }
+        Debug.Log($"Состояние {savedState.Count} кубов сохранено.");
+    }
+
+    /// <summary>
+    /// Загружает ранее сохраненное состояние кубов.
+    /// </summary>
+    public void LoadState()
+    {
+        if (savedState == null || savedState.Count == 0)
+        {
+            Debug.LogWarning("Нет сохраненного состояния для загрузки.");
+            return;
+        }
 
         foreach (var cube in allCubes)
         {
-            CubeState state = new CubeState
+            if (savedState.TryGetValue(cube.transform.position, out CubeState state))
             {
-                Position = cube.transform.position,
-                Rotation = cube.transform.rotation
-            };
-            savedCubeStates.Add(state);
+                // Загружаем только вращение. Позиция остается той же.
+                cube.transform.rotation = state.Rotation;
+            }
         }
-
-        Debug.Log("Cube state saved.");
-    }
-
-    public void LoadCubeState()
-    {
-        if (savedCubeStates == null || savedCubeStates.Count == 0)
-        {
-            Debug.LogWarning("There is no saved cube state.");
-            return;
-        }
-
-        GameObject[] allCubes = GameObject.FindGameObjectsWithTag("Cube");
-
-        if (allCubes.Length != savedCubeStates.Count)
-        {
-            Debug.LogError("The number of cubes has been changed, it is not possible to load the state of the cubes.");
-            return;
-        }
-
-        for (int i = 0; i < allCubes.Length; i++)
-        {
-            allCubes[i].transform.position = savedCubeStates[i].Position;
-            allCubes[i].transform.rotation = savedCubeStates[i].Rotation;
-        }
-
-        Debug.Log("Cube state is loaded.");
+        Debug.Log("Состояние кубов загружено.");
     }
 }

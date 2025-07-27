@@ -1,156 +1,93 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
+/// <summary>
+/// Управляет логикой выделения и снятия выделения кубов.
+/// </summary>
 public class CubeSelector : MonoBehaviour
 {
-    public List<GameObject> SelectedCubes { get; private set; } = new List<GameObject>();
-    private Dictionary<GameObject, int> cubeCategories = new Dictionary<GameObject, int>();
+    private List<CubeController> _allCubes;
+    private readonly List<CubeController> _selectedCubes = new List<CubeController>();
 
-    public void Initialize()
+    /// <summary>
+    /// Публичное свойство для доступа к списку выделенных кубов (только для чтения).
+    /// </summary>
+    public IReadOnlyList<CubeController> SelectedCubes => _selectedCubes;
+    
+    private Camera _mainCamera;
+
+    /// <summary>
+    /// Инициализирует селектор списком всех кубов на поле.
+    /// </summary>
+    public void Initialize(List<CubeController> cubes)
     {
-        GameObject[] allCubes = GameObject.FindGameObjectsWithTag("Cube");
-
-        foreach (var cube in allCubes)
+        _allCubes = cubes;
+        _mainCamera = Camera.main;
+    }
+    
+    /// <summary>
+    /// Обрабатывает клик мыши для выделения/снятия выделения куба.
+    /// </summary>
+    public void HandleSelectionClick(Vector3 screenPosition)
+    {
+        Ray ray = _mainCamera.ScreenPointToRay(screenPosition);
+        if (Physics.Raycast(ray, out RaycastHit hit) && hit.collider.TryGetComponent<CubeController>(out var cube))
         {
-            UpdateCubeCategory(cube);
+            ToggleSelection(cube);
         }
     }
 
-    public void HandleSelectionInput()
+    /// <summary>
+    /// Выделяет/снимает выделение для всех кубов указанной категории.
+    /// </summary>
+    public void ToggleSelectionByCategory(CubeFace category)
     {
-        if (Input.GetMouseButtonDown(0))
+        foreach (var cube in _allCubes)
         {
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit) && hit.collider.CompareTag("Cube"))
+            if (cube.GetTopFaceCategory() == category)
             {
-                ToggleSelection(hit.collider.gameObject);
-            }
-        }
-
-        if (Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.Keypad0))
-        {
-            DeselectAllCubes();
-        }
-
-        for (int i = 1; i <= 6; i++)
-        {
-            if (Input.GetKeyDown(KeyCode.Keypad1 + (i - 1)))
-            {
-                SelectCubesByCategory(i);
-            }
-        }
-    }
-
-    private void ToggleSelection(GameObject cube)
-    {
-        if (SelectedCubes.Contains(cube))
-        {
-            DeselectCube(cube);
-        }
-        else
-        {
-            SelectCube(cube);
-        }
-    }
-
-    private void SelectCube(GameObject cube)
-    {
-        SelectedCubes.Add(cube);
-        SetBordersActive(cube, true);
-    }
-
-    private void DeselectCube(GameObject cube)
-    {
-        SelectedCubes.Remove(cube);
-        SetBordersActive(cube, false);
-    }
-
-    public void DeselectAllCubes()
-    {
-        foreach (var cube in SelectedCubes)
-        {
-            SetBordersActive(cube, false);
-        }
-        SelectedCubes.Clear();
-    }
-
-    private void SetBordersActive(GameObject cube, bool active)
-    {
-        foreach (Transform child in cube.transform)
-        {
-            foreach (Transform grandchild in child)
-            {
-                if (grandchild.CompareTag("Border"))
-                {
-                    grandchild.gameObject.SetActive(active);
-                }
+                ToggleSelection(cube);
             }
         }
     }
 
-    public void UpdateCubeCategory(GameObject cube)
+    /// <summary>
+    /// Снимает выделение со всех кубов.
+    /// </summary>
+    public void DeselectAll()
     {
-        Vector3 cubeUp = cube.transform.up;
-        int category = 1;
-
-        if (cubeUp == Vector3.up)
+        foreach (var cube in _selectedCubes.ToList())
         {
-            category = 1;
-        }
-        else if (cubeUp == Vector3.forward)
-        {
-            category = 2;
-        }
-        else if (cubeUp == Vector3.left)
-        {
-            category = 3;
-        }
-        else if (cubeUp == Vector3.back)
-        {
-            category = 4;
-        }
-        else if (cubeUp == Vector3.right)
-        {
-            category = 5;
-        }
-        else if (cubeUp == Vector3.down)
-        {
-            category = 6;
-        }
-
-        if (cubeCategories.ContainsKey(cube))
-        {
-            cubeCategories[cube] = category;
-        }
-        else
-        {
-            cubeCategories.Add(cube, category);
+            Deselect(cube);
         }
     }
 
-
-    public void SelectCubesByCategory(int category)
+    /// <summary>
+    /// Возвращает список невыделенных кубов.
+    /// </summary>
+    public List<CubeController> GetUnselectedCubes()
     {
-        List<GameObject> cubesToToggle = new List<GameObject>();
-
-        foreach (var cube in cubeCategories)
-        {
-            if (cube.Value == category)
-            {
-                cubesToToggle.Add(cube.Key);
-            }
-        }
-
-        foreach (var cube in cubesToToggle)
-        {
-            if (SelectedCubes.Contains(cube))
-            {
-                DeselectCube(cube);
-            }
-            else
-            {
-                SelectCube(cube);
-            }
-        }
+        return _allCubes.Where(c => !c.IsSelected).ToList();
+    }
+    
+    private void ToggleSelection(CubeController cube)
+    {
+        if (cube.IsSelected) Deselect(cube);
+        else Select(cube);
+    }
+    
+    private void Select(CubeController cube)
+    {
+        if (cube.IsSelected) return;
+        cube.SetSelected(true);
+        _selectedCubes.Add(cube);
+    }
+    
+    private void Deselect(CubeController cube)
+    {
+        if (!cube.IsSelected) return;
+        cube.SetSelected(false);
+        _selectedCubes.Remove(cube);
     }
 }

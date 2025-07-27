@@ -10,22 +10,16 @@ public class MenuManager : MonoBehaviour
     public Button quitButton;
     public Button resumeButton;
 
-    private CubeRotator cubeRotator;
-    private CubeSelector cubeSelector;
-    private CubeStateManager cubeStateManager;
-
     void Start()
     {
         menuPanel.SetActive(true);
+        Time.timeScale = 0; // Пауза при старте
 
         startButton.onClick.AddListener(StartOrRestartGame);
         saveButton.onClick.AddListener(SaveGame);
         loadButton.onClick.AddListener(LoadGame);
         quitButton.onClick.AddListener(QuitGame);
-        resumeButton.onClick.AddListener(ResumeGame); 
-        cubeRotator = FindObjectOfType<CubeRotator>();
-        cubeSelector = FindObjectOfType<CubeSelector>();
-        cubeStateManager = FindObjectOfType<CubeStateManager>();
+        resumeButton.onClick.AddListener(ResumeGame);
 
         resumeButton.gameObject.SetActive(false); 
     }
@@ -40,47 +34,27 @@ public class MenuManager : MonoBehaviour
 
     public void ToggleMenu()
     {
-        bool isActive = menuPanel.activeSelf;
-        menuPanel.SetActive(!isActive);
-        Time.timeScale = isActive ? 1 : 0;
+        bool isMenuActive = !menuPanel.activeSelf;
+        menuPanel.SetActive(isMenuActive);
+        Time.timeScale = isMenuActive ? 0 : 1;
+        
+        // Кнопка "Продолжить" видна только если игра уже была начата
+        resumeButton.gameObject.SetActive(Time.timeScale == 0 && GameManager.Instance != null);
     }
 
     private void StartOrRestartGame()
     {
-        cubeSelector.DeselectAllCubes();
-        RotateAllCubesToFirstFace();
-        resumeButton.gameObject.SetActive(true);
+        GameManager.Instance.ResetAllCubes();
         ToggleMenu();
     }
 
-    private void RotateAllCubesToFirstFace()
-    {
-        GameObject[] allCubes = GameObject.FindGameObjectsWithTag("Cube");
-        foreach (var cube in allCubes)
-        {
-            cubeRotator.StartRotation(cube, 1);
-        }
-        Debug.Log("All cubes have the first face turned upwards");
-    }
-
-    private void SaveGame()
-    {
-        cubeStateManager.SaveCubeState();
-    }
-
-    private void LoadGame()
-    {
-        cubeStateManager.LoadCubeState();
-    }
+    private void SaveGame() => GameManager.Instance.SaveState();
+    private void LoadGame() => GameManager.Instance.LoadState();
+    private void ResumeGame() => ToggleMenu();
 
     private void QuitGame()
     {
-        Debug.Log("Quitting the game...");
+        Debug.Log("Quitting...");
         Application.Quit();
-    }
-
-    private void ResumeGame()
-    {
-        ToggleMenu();
     }
 }

@@ -1,155 +1,103 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Отвечает за логику и анимацию вращения кубов.
+/// </summary>
 public class CubeRotator : MonoBehaviour
 {
-    private float rotationSpeed = 2.0f;
-    private Dictionary<GameObject, Quaternion> targetRotations = new Dictionary<GameObject, Quaternion>();
-    private List<GameObject> rotatingCubes = new List<GameObject>();
+    [Tooltip("Скорость вращения кубов.")]
+    [SerializeField] private float rotationSpeed = 5.0f;
 
-    private CubeSelector cubeSelector;
+    // Допуск, при котором вращение считается завершенным.
+    private const float RotationAngleTolerance = 0.1f;
 
-    void Start()
+    private readonly Dictionary<CubeController, Quaternion> _targetRotations = new Dictionary<CubeController, Quaternion>();
+
+    private void Update()
     {
-        cubeSelector = GetComponent<CubeSelector>();
+        UpdateRotations();
     }
 
-    public void HandleRotationInput(List<GameObject> selectedCubes)
+    /// <summary>
+    /// Плавно поворачивает кубы к их целевым ротациям.
+    /// </summary>
+    private void UpdateRotations()
     {
-        if (selectedCubes.Count > 0)
+        if (_targetRotations.Count == 0) return;
+
+        List<CubeController> cubesToRemove = new List<CubeController>();
+
+        foreach (var entry in _targetRotations)
         {
-            if (Input.GetKeyDown(KeyCode.Alpha1))
-            {
-                StartRotationForSelected(selectedCubes, 1);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha2))
-            {
-                StartRotationForSelected(selectedCubes, 2);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha3))
-            {
-                StartRotationForSelected(selectedCubes, 3);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha4))
-            {
-                StartRotationForSelected(selectedCubes, 4);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha5))
-            {
-                StartRotationForSelected(selectedCubes, 5);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha6))
-            {
-                StartRotationForSelected(selectedCubes, 6);
-            }
-        }
+            var cube = entry.Key;
+            var targetRotation = entry.Value;
+            
+            cube.transform.rotation = Quaternion.Lerp(cube.transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
 
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            RotateSelectedCubesRandomly(selectedCubes);
-        }
-
-        if (Input.GetKeyDown(KeyCode.U))
-        {
-            RotateUnselectedCubesRandomly();
-        }
-    }
-
-    public void UpdateRotations()
-    {
-        List<GameObject> cubesToRemove = new List<GameObject>();
-
-        foreach (var cube in rotatingCubes)
-        {
-            if (cube != null && targetRotations.ContainsKey(cube))
+            if (Quaternion.Angle(cube.transform.rotation, targetRotation) < RotationAngleTolerance)
             {
-                cube.transform.rotation = Quaternion.Lerp(cube.transform.rotation, targetRotations[cube], Time.deltaTime * rotationSpeed);
-
-                if (Quaternion.Angle(cube.transform.rotation, targetRotations[cube]) < 0.1f)
-                {
-                    cube.transform.rotation = targetRotations[cube];
-                    cubesToRemove.Add(cube);
-                    cubeSelector.UpdateCubeCategory(cube);
-                }
+                cube.transform.rotation = targetRotation;
+                cubesToRemove.Add(cube);
             }
         }
 
         foreach (var cube in cubesToRemove)
         {
-            rotatingCubes.Remove(cube);
-            targetRotations.Remove(cube);
+            _targetRotations.Remove(cube);
         }
     }
 
-    public void StartRotation(GameObject cube, int targetFace)
+    /// <summary>
+    /// Запускает вращение для списка кубов к определенной грани.
+    /// </summary>
+    /// <param name="cubes">Список кубов для вращения.</param>
+    /// <param name="targetFace">Целевая грань.</param>
+    public void RotateCubesToFace(IReadOnlyList<CubeController> cubes, CubeFace targetFace)
     {
-        if (!rotatingCubes.Contains(cube))
+        Quaternion targetRotation = GetRotationForFace(targetFace);
+        foreach (var cube in cubes)
         {
-            rotatingCubes.Add(cube);
-        }
-
-        Quaternion targetRotation = Quaternion.identity;
-
-        switch (targetFace)
-        {
-            case 1:
-                targetRotation = Quaternion.identity;
-                break;
-            case 2:
-                targetRotation = Quaternion.Euler(90f, 0f, 0f);
-                break;
-            case 3:
-                targetRotation = Quaternion.Euler(0f, 0f, -90f);
-                break;
-            case 4:
-                targetRotation = Quaternion.Euler(0f, 0f, 90f);
-                break;
-            case 5:
-                targetRotation = Quaternion.Euler(-90f, 0f, 0f);
-                break;
-            case 6:
-                targetRotation = Quaternion.Euler(180f, 0f, 0f);
-                break;
-        }
-
-        if (targetRotations.ContainsKey(cube))
-        {
-            targetRotations[cube] = targetRotation;
-        }
-        else
-        {
-            targetRotations.Add(cube, targetRotation);
+            StartRotation(cube, targetRotation);
         }
     }
 
-    public void StartRotationForSelected(List<GameObject> selectedCubes, int targetFace)
+    /// <summary>
+    /// Запускает вращение для списка кубов в случайные стороны.
+    /// </summary>
+    /// <param name="cubes">Список кубов для вращения.</param>
+    public void RotateCubesRandomly(IReadOnlyList<CubeController> cubes)
     {
-        foreach (var cube in selectedCubes)
+        foreach (var cube in cubes)
         {
-            StartRotation(cube, targetFace);
+            CubeFace randomFace = (CubeFace)Random.Range(1, 7);
+            Quaternion targetRotation = GetRotationForFace(randomFace);
+            StartRotation(cube, targetRotation);
         }
     }
 
-    public void RotateSelectedCubesRandomly(List<GameObject> selectedCubes)
+    /// <summary>
+    /// Добавляет или обновляет целевую ротацию для одного куба.
+    /// </summary>
+    private void StartRotation(CubeController cube, Quaternion targetRotation)
     {
-        foreach (var cube in selectedCubes)
-        {
-            int randomFace = Random.Range(1, 7);
-            StartRotation(cube, randomFace);
-        }
+        _targetRotations[cube] = targetRotation;
     }
 
-    public void RotateUnselectedCubesRandomly()
+    /// <summary>
+    /// Возвращает кватернион вращения для указанной грани.
+    /// </summary>
+    private Quaternion GetRotationForFace(CubeFace face)
     {
-        GameObject[] allCubes = GameObject.FindGameObjectsWithTag("Cube");
-
-        foreach (var cube in allCubes)
+        switch (face)
         {
-            if (!rotatingCubes.Contains(cube))
-            {
-                int randomFace = Random.Range(1, 7);
-                StartRotation(cube, randomFace);
-            }
+            case CubeFace.Up:      return Quaternion.Euler(0f, 0f, 0f);
+            case CubeFace.Forward: return Quaternion.Euler(-90f, 0f, 0f);
+            case CubeFace.Left:    return Quaternion.Euler(0f, 0f, 90f);
+            case CubeFace.Back:    return Quaternion.Euler(90f, 0f, 0f);
+            case CubeFace.Right:   return Quaternion.Euler(0f, 0f, -90f);
+            case CubeFace.Down:    return Quaternion.Euler(180f, 0f, 0f);
+            default:               return Quaternion.identity;
         }
     }
 }
