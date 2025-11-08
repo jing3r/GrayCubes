@@ -36,7 +36,7 @@ public class UIManager : MonoBehaviour
         for (int i = 0; i < selectCategoryButtons.Count; i++)
         {
             CubeFace category = (CubeFace)(i + 1);
-            selectCategoryButtons[i].onClick.AddListener(() => selector.ToggleSelectionByCategory(category));
+            selectCategoryButtons[i].onClick.AddListener(() => selector.SelectByCategory(category));
         }
 
         for (int i = 0; i < rotateToFaceButtons.Count; i++)

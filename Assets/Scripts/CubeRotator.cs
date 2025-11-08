@@ -47,6 +47,7 @@ public class CubeRotator : MonoBehaviour
             _targetRotations.Remove(cube);
         }
     }
+    // --- Старая логика вращения кубов через UI ---
 
     /// <summary>
     /// Запускает вращение для списка кубов к определенной грани.
@@ -58,7 +59,7 @@ public class CubeRotator : MonoBehaviour
         Quaternion targetRotation = GetRotationForFace(targetFace);
         foreach (var cube in cubes)
         {
-            StartRotation(cube, targetRotation);
+            RotateCubeTo(cube, targetRotation);
         }
     }
 
@@ -72,16 +73,40 @@ public class CubeRotator : MonoBehaviour
         {
             CubeFace randomFace = (CubeFace)Random.Range(1, 7);
             Quaternion targetRotation = GetRotationForFace(randomFace);
-            StartRotation(cube, targetRotation);
+            RotateCubeTo(cube, targetRotation);
         }
     }
 
     /// <summary>
     /// Добавляет или обновляет целевую ротацию для одного куба.
     /// </summary>
-    private void StartRotation(CubeController cube, Quaternion targetRotation)
+    public void RotateCubeTo(CubeController cube, Quaternion targetRotation)
     {
         _targetRotations[cube] = targetRotation;
+    }
+
+
+    // --- Новая логика вращения кубов через WASD + R ---
+    
+    /// <summary>
+    /// Запускает относительное вращение для списка кубов.
+    /// </summary>
+    /// <param name="cubes">Список кубов для вращения.</param>
+    /// <param name="rotationAxis">Ось вращения в мировых координатах (e.g., Vector3.up).</param>
+    /// <param name="angle">Угол поворота в градусах.</param>
+    public void RotateCubesBy(IReadOnlyList<CubeController> cubes, Vector3 rotationAxis, float angle)
+    {
+        Quaternion rotation = Quaternion.AngleAxis(angle, rotationAxis);
+        foreach (var cube in cubes)
+        {
+            // Вычисляем новую целевую ротацию, умножая ее на текущую цель (или текущее положение)
+            Quaternion currentTarget = _targetRotations.ContainsKey(cube)
+                ? _targetRotations[cube]
+                : cube.transform.rotation;
+
+            Quaternion newTargetRotation = rotation * currentTarget;
+            RotateCubeTo(cube, newTargetRotation);
+        }
     }
 
     /// <summary>
@@ -91,13 +116,30 @@ public class CubeRotator : MonoBehaviour
     {
         switch (face)
         {
-            case CubeFace.Up:      return Quaternion.Euler(0f, 0f, 0f);
+            case CubeFace.Up: return Quaternion.Euler(0f, 0f, 0f);
             case CubeFace.Forward: return Quaternion.Euler(-90f, 0f, 0f);
-            case CubeFace.Left:    return Quaternion.Euler(0f, 0f, 90f);
-            case CubeFace.Back:    return Quaternion.Euler(90f, 0f, 0f);
-            case CubeFace.Right:   return Quaternion.Euler(0f, 0f, -90f);
-            case CubeFace.Down:    return Quaternion.Euler(180f, 0f, 0f);
-            default:               return Quaternion.identity;
+            case CubeFace.Left: return Quaternion.Euler(0f, 0f, 90f);
+            case CubeFace.Back: return Quaternion.Euler(90f, 0f, 0f);
+            case CubeFace.Right: return Quaternion.Euler(0f, 0f, -90f);
+            case CubeFace.Down: return Quaternion.Euler(180f, 0f, 0f);
+            default: return Quaternion.identity;
         }
     }
+    public Quaternion GetTargetRotation(CubeController cube)
+    {
+        if (_targetRotations.TryGetValue(cube, out Quaternion targetRotation))
+        {
+            return targetRotation; // Возвращаем цель, если куб анимируется
+        }
+        return cube.transform.rotation; // Возвращаем текущее положение, если статичен
+    }
+
+    /// <summary>
+    /// Немедленно останавливает все текущие и запланированные анимации вращения.
+    /// </summary>
+    public void StopAllRotations()
+    {
+        _targetRotations.Clear();
+    }
+
 }

@@ -5,7 +5,7 @@ using System.Linq;
 
 /// <summary>
 /// Управляет симуляцией игры "Жизнь" Конвея на поле из кубов.
-/// Поддерживает тороидальный (зацикленный) мир.
+/// Использует централизованный GameBoard для получения данных о сетке.
 /// </summary>
 public class GameOfLifeController : MonoBehaviour
 {
@@ -23,23 +23,19 @@ public class GameOfLifeController : MonoBehaviour
     public bool IsRunning => _simulationCoroutine != null;
     public event System.Action<int> OnGenerationUpdated;
 
-    private List<CubeController> _allCubes;
-    private Dictionary<Vector2Int, CubeController> _grid = new Dictionary<Vector2Int, CubeController>();
+    private GameBoard _gameBoard;
     private CubeRotator _cubeRotator;
     private Coroutine _simulationCoroutine;
-    
-    private float _spacing;
-    private int _gridWidth, _gridHeight;
-    
+    private List<CubeController> _allCubesSnapshot; // Храним список для обхода
+
     /// <summary>
-    /// Инициализирует контроллер необходимыми зависимостями и данными о поле.
+    /// Инициализирует контроллер необходимыми зависимостями.
     /// </summary>
-    public void Initialize(List<CubeController> allCubes, CubeRotator cubeRotator, float cubeSpacing)
+    public void Initialize(GameBoard gameBoard, CubeRotator cubeRotator, IReadOnlyList<CubeController> allCubes)
     {
-        _allCubes = allCubes;
+        _gameBoard = gameBoard;
         _cubeRotator = cubeRotator;
-        _spacing = cubeSpacing;
-        BuildGrid();
+        _allCubesSnapshot = new List<CubeController>(allCubes);
     }
 
     /// <summary>
@@ -55,6 +51,11 @@ public class GameOfLifeController : MonoBehaviour
         }
         else
         {
+            if (_gameBoard == null)
+            {
+                Debug.LogError("GameOfLifeController не инициализирован!");
+                return;
+            }
             GenerationCount = 0;
             OnGenerationUpdated?.Invoke(GenerationCount);
             BinarizeCurrentState();
@@ -62,42 +63,14 @@ public class GameOfLifeController : MonoBehaviour
             Debug.Log("Симуляция 'Жизни' запущена.");
         }
     }
-    
-    private void BuildGrid()
-    {
-        if (_allCubes == null || _allCubes.Count == 0) return;
-
-        var minX = _allCubes.Min(c => c.transform.position.x);
-        var minZ = _allCubes.Min(c => c.transform.position.z);
-        
-        _grid.Clear();
-        _gridWidth = 0;
-        _gridHeight = 0;
-
-        foreach (var cube in _allCubes)
-        {
-            int x = Mathf.RoundToInt((cube.transform.position.x - minX) / _spacing);
-            int y = Mathf.RoundToInt((cube.transform.position.z - minZ) / _spacing);
-            var gridPos = new Vector2Int(x, y);
-
-            _grid[gridPos] = cube;
-
-            if (x > _gridWidth) _gridWidth = x;
-            if (y > _gridHeight) _gridHeight = y;
-        }
-        
-        _gridWidth++;
-        _gridHeight++;
-    }
 
     private void BinarizeCurrentState()
     {
         var cubesToMakeAlive = new List<CubeController>();
         var cubesToMakeDead = new List<CubeController>();
 
-        foreach (var cube in _allCubes)
+        foreach (var cube in _allCubesSnapshot)
         {
-            // Логика определения состояния по принципу "темный/светлый"
             if ((int)cube.GetTopFaceCategory() >= 4)
                 cubesToMakeAlive.Add(cube);
             else
@@ -123,7 +96,7 @@ public class GameOfLifeController : MonoBehaviour
     {
         var changes = new Dictionary<CubeController, bool>();
 
-        foreach (var cube in _allCubes)
+        foreach (var cube in _allCubesSnapshot)
         {
             int aliveNeighbors = CountAliveNeighbors(cube);
             bool isCurrentlyAlive = IsCubeAlive(cube);
@@ -145,45 +118,11 @@ public class GameOfLifeController : MonoBehaviour
 
     private int CountAliveNeighbors(CubeController cube)
     {
-        int count = 0;
-        var gridPos = GetGridPosition(cube.transform.position);
-
-        for (int x = -1; x <= 1; x++)
-        {
-            for (int y = -1; y <= 1; y++)
-            {
-                if (x == 0 && y == 0) continue;
-
-                int neighborX = (gridPos.x + x + _gridWidth) % _gridWidth;
-                int neighborY = (gridPos.y + y + _gridHeight) % _gridHeight;
-                
-                if (_grid.TryGetValue(new Vector2Int(neighborX, neighborY), out var neighbor) && IsCubeAlive(neighbor))
-                {
-                    count++;
-                }
-            }
-        }
-        return count;
+        Vector2Int gridPos = _gameBoard.WorldToGridPosition(cube.transform.position);
+        List<CubeController> neighbors = _gameBoard.GetNeighbors(gridPos);
+        
+        return neighbors.Count(IsCubeAlive);
     }
-
-    // Этот метод я разделил, чтобы GetGridPosition не зависел от полей класса
-    private Vector2Int GetGridPosition(Vector3 worldPosition)
-    {
-        var minPos = new Vector3(_grid.Keys.Min(p => p.x), 0, _grid.Keys.Min(p => p.y));
-        minPos.x = minPos.x * _spacing + _allCubes[0].transform.position.x;
-        minPos.z = minPos.z * _spacing + _allCubes[0].transform.position.z;
-
-        return GetGridPosition(worldPosition, minPos, _spacing);
-    }
-
-    // Статический метод, который можно тестировать независимо
-    private static Vector2Int GetGridPosition(Vector3 worldPos, Vector3 originPos, float spacing)
-    {
-        int x = Mathf.RoundToInt((worldPos.x - originPos.x) / spacing);
-        int y = Mathf.RoundToInt((worldPos.z - originPos.z) / spacing);
-        return new Vector2Int(x, y);
-    }
-
 
     private bool IsCubeAlive(CubeController cube)
     {
@@ -191,6 +130,7 @@ public class GameOfLifeController : MonoBehaviour
         if (currentFace == aliveFace) return true;
         if (currentFace == deadFace) return false;
         
+        // Резервная логика, если куб не находится в бинарном состоянии
         return (int)currentFace >= 4;
     }
 

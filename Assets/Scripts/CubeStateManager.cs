@@ -9,13 +9,15 @@ public class CubeStateManager : MonoBehaviour
 {
     private List<CubeController> allCubes;
     private Dictionary<Vector3, CubeState> savedState;
+    private CubeRotator cubeRotator; 
 
     /// <summary>
     /// Инициализирует менеджер состояния.
     /// </summary>
-    public void Initialize(List<CubeController> cubes)
+    public void Initialize(List<CubeController> cubes, CubeRotator rotator)
     {
         allCubes = cubes;
+        cubeRotator = rotator;
     }
 
     /// <summary>
@@ -23,15 +25,23 @@ public class CubeStateManager : MonoBehaviour
     /// </summary>
     public void SaveState()
     {
+        if (cubeRotator == null)
+        {
+            Debug.LogError("CubeRotator не инициализирован в CubeStateManager! Сохранение будет неточным.");
+        }
+
         savedState = new Dictionary<Vector3, CubeState>();
         foreach (var cube in allCubes)
         {
-            var state = new CubeState { Rotation = cube.transform.rotation };
-            // Используем позицию как уникальный идентификатор
+
+            Quaternion targetRotation = cubeRotator.GetTargetRotation(cube);
+
+            var state = new CubeState { Rotation = targetRotation };
             savedState[cube.transform.position] = state;
         }
         Debug.Log($"Состояние {savedState.Count} кубов сохранено.");
     }
+
 
     /// <summary>
     /// Загружает ранее сохраненное состояние кубов.
@@ -43,7 +53,10 @@ public class CubeStateManager : MonoBehaviour
             Debug.LogWarning("Нет сохраненного состояния для загрузки.");
             return;
         }
-
+        if (cubeRotator != null)
+        {
+            cubeRotator.StopAllRotations();
+        }
         foreach (var cube in allCubes)
         {
             if (savedState.TryGetValue(cube.transform.position, out CubeState state))
